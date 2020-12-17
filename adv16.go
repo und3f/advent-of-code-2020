@@ -199,9 +199,6 @@ func main() {
 		}
 		partTwo = partTwo * myTicket[i]
 	}
-	/*
-		partTwo = runProgramV2(lines)
-	*/
 
 	fmt.Println("Part One:", partOne)
 	fmt.Println("Part Two:", partTwo)
