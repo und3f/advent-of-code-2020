@@ -9,17 +9,22 @@ import (
 
 import "github.com/und3f/advent-of-code-2020/grid3d"
 
-func newGridFromString(lines []string) *grid3d.Grid3D {
+func newGridFromString(lines []string) (*grid3d.Grid3D, *grid3d.HyperCube) {
 	grid := grid3d.NewGrid3D()
+	cube := grid3d.NewHyperCube()
+
 	offset := (len(lines) - 1) / 2
 
 	for y, row := range lines {
 		for x, cell := range row {
-			grid.Set(grid3d.Coord{0, y - offset, x - offset}, cell == '#')
+			if cell == '#' {
+				grid.Set(grid3d.Coord{0, y - offset, x - offset}, true)
+				cube.Set(grid3d.HyperCoord{0, 0, y - offset, x - offset}, true)
+			}
 		}
 	}
 
-	return grid
+	return grid, cube
 }
 
 const Cycles = 6
@@ -31,7 +36,7 @@ func main() {
 	}
 	lines := strings.Split(strings.TrimSpace(string(reportLine)), "\n")
 
-	gridOrigin := newGridFromString(lines)
+	gridOrigin, cubeOrigin := newGridFromString(lines)
 
 	var partOne, partTwo int
 
@@ -41,6 +46,13 @@ func main() {
 	}
 	grid.Print()
 	partOne = grid.CalculateActive()
+
+	cube := cubeOrigin
+	for i := 0; i < Cycles; i++ {
+		cube = cube.Cycle()
+	}
+	cube.Print()
+	partTwo = cube.CalculateActive()
 
 	fmt.Println("Part One:", partOne)
 	fmt.Println("Part Two:", partTwo)

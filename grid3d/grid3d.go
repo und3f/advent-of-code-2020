@@ -14,8 +14,9 @@ type Grid3D struct {
 	offset int
 }
 
+type HyperCoord [4]int
 type HyperCube struct {
-	cube   []Grid3D
+	cube   []*Grid3D
 	offset int
 }
 
@@ -28,6 +29,12 @@ func NewGrid3D() *Grid3D {
 	grid.grid = []GridSlice{GridSlice{slice: [][]bool{[]bool{false}}}}
 
 	return grid
+}
+
+func NewHyperCube() *HyperCube {
+	cube := new(HyperCube)
+	cube.cube = []*Grid3D{NewGrid3D()}
+	return cube
 }
 
 func (slice *GridSlice) CoordToIndex(coord Coord) (int, int) {
@@ -167,7 +174,7 @@ func (grid *Grid3D) CalcNeighbors(coord Coord) int {
 					continue
 				}
 
-				checking := Coord{coord[0] + z, coord[1] + x, coord[2] + y}
+				checking := Coord{coord[0] + z, coord[1] + y, coord[2] + x}
 				if grid.Get(checking) {
 					sum++
 
@@ -229,4 +236,138 @@ func (grid *Grid3D) Print() {
 		fmt.Printf("z=%d\n", z-grid.offset)
 		slice.Print()
 	}
+}
+
+func (cube *HyperCube) Print() {
+	for w, grid := range cube.cube {
+		for z, slice := range grid.grid {
+			fmt.Printf("z=%d, w=%d\n", z-grid.offset, w-cube.offset)
+			slice.Print()
+		}
+	}
+}
+
+func (cube *HyperCube) Get(coord HyperCoord) bool {
+	w := coord[0] + cube.offset
+	if w < 0 || w >= len(cube.cube) {
+		return false
+	}
+
+	return cube.cube[w].Get(Coord{coord[1], coord[2], coord[3]})
+}
+
+func (cube *HyperCube) Set(coord HyperCoord, value bool) {
+	w := coord[0] + cube.offset
+
+	if w < 0 {
+		insert := -w
+		fmt.Println("PREPEND", coord)
+		for i := 0; i < insert; i++ {
+			cube.cube = append([]*Grid3D{NewGrid3D()}, cube.cube...)
+		}
+		cube.offset += insert
+		w += insert
+	} else if w >= len(cube.cube) {
+		fmt.Println("APPEND", coord)
+		insert := w - len(cube.cube) + 1
+		for i := 0; i < insert; i++ {
+			cube.cube = append(cube.cube, NewGrid3D())
+		}
+	}
+
+	cube.cube[w].Set(Coord{coord[1], coord[2], coord[3]}, value)
+}
+
+func (cube *HyperCube) CalculateActive() int {
+	var sum int
+	for _, grid := range cube.cube {
+		sum += grid.CalculateActive()
+	}
+
+	return sum
+}
+
+func (cube *HyperCube) CalcNeighbors(coord HyperCoord) int {
+	sum := 0
+	for w := -1; w <= 1; w++ {
+		for z := -1; z <= 1; z++ {
+			for y := -1; y <= 1; y++ {
+				for x := -1; x <= 1; x++ {
+					if x == 0 && y == 0 && z == 0 && w == 0 {
+						continue
+					}
+
+					checking := HyperCoord{coord[0] + w, coord[1] + z, coord[2] + y, coord[3] + x}
+					if cube.Get(checking) {
+						sum++
+
+						if sum > 3 {
+							return sum
+						}
+					}
+				}
+			}
+		}
+	}
+	return sum
+}
+
+func (cube *HyperCube) Cycle() *HyperCube {
+
+	newCube := NewHyperCube()
+	minW := -cube.offset
+	maxW := len(cube.cube) - 1 - cube.offset
+
+	minZ := int(^uint(0) >> 1)
+	maxZ := 0
+
+	var maxSlice int
+	for _, grid := range cube.cube {
+
+		localMinZ := -grid.offset
+		localMaxZ := len(grid.grid) - 1 - grid.offset
+		if minZ > localMinZ {
+			minZ = localMinZ
+		}
+		if maxZ < localMaxZ {
+			maxZ = localMaxZ
+		}
+
+		for _, slice := range grid.grid {
+			sliceLen := len(slice.slice)
+			if sliceLen > maxSlice {
+				maxSlice = sliceLen
+			}
+		}
+	}
+	sliceOffset := (maxSlice - 1) / 2
+
+	for w := minW - 1; w <= maxW+1; w++ {
+		for z := minZ - 1; z <= maxZ+1; z++ {
+			for y := -sliceOffset - 1; y <= sliceOffset+1; y++ {
+				for x := -sliceOffset - 1; x <= sliceOffset+1; x++ {
+					coord := HyperCoord{w, z, y, x}
+					// fmt.Println(coord)
+					cell := cube.Get(coord)
+					// fmt.Println("Neigh")
+					neighbors := cube.CalcNeighbors(coord)
+					if cell {
+						if neighbors == 2 || neighbors == 3 {
+							newCube.Set(coord, true)
+							// fmt.Println(coord, true)
+							// newGrid.Print()
+						}
+					} else {
+						if neighbors == 3 {
+							newCube.Set(coord, true)
+							// fmt.Println(coord, true)
+							// newGrid.Print()
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return newCube
 }
