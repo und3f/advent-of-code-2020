@@ -15,16 +15,24 @@ type Floor struct {
 
 func (floor *Floor) incSize() {
 	for i, row := range floor.tiles {
-		floor.tiles[i] = append([]bool{true}, append(row, true)...)
+		floor.tiles[i] = append([]bool{true, true}, append(row, true, true)...)
 	}
-	newLength := len(floor.tiles) + 2
-	emptyRow1 := make([]bool, newLength)
-	emptyRow2 := make([]bool, newLength)
-	for i := range emptyRow1 {
-		emptyRow1[i] = true
+	newLength := len(floor.tiles) + 4
+	emptyRow := make([]bool, newLength)
+	emptyRowsPrepend := make([][]bool, 2)
+	emptyRowsAppend := make([][]bool, 2)
+	for i := range emptyRow {
+		emptyRow[i] = true
 	}
-	copy(emptyRow2, emptyRow1)
-	floor.tiles = append([][]bool{emptyRow1}, append(floor.tiles, emptyRow2)...)
+	for i := range emptyRowsPrepend {
+		emptyRowsPrepend[i] = make([]bool, newLength)
+		copy(emptyRowsPrepend[i], emptyRow)
+	}
+	for i := range emptyRowsAppend {
+		emptyRowsAppend[i] = make([]bool, newLength)
+		copy(emptyRowsAppend[i], emptyRow)
+	}
+	floor.tiles = append(emptyRowsPrepend, append(floor.tiles, emptyRowsAppend...)...)
 }
 
 func newFloor() *Floor {
@@ -48,9 +56,9 @@ func (floor Floor) String() (out string) {
 				out += "  "
 			}
 			if state {
-				out += " ⬡"
-			} else {
 				out += " ⬢"
+			} else {
+				out += " ⬡"
 			}
 		}
 	}
@@ -70,6 +78,7 @@ func (floor *Floor) flip(y, x int) {
 }
 
 func (floor Floor) getTile(y, x int) bool {
+	// fmt.Println("getTile", y, x)
 	center := (len(floor.tiles)) / 2
 	if x < -center || x >= center+1 || y < -center || y >= center+1 {
 		return true
@@ -91,21 +100,28 @@ func (floor Floor) countBlack() uint {
 }
 
 func (floor Floor) countAdjancent(y, x int, color bool) uint {
+	// fmt.Println("countAdjancent", y, x, color)
 	adjancent := uint(0)
+
+	// fmt.Println(xOffset)
 	for k := 0; k <= 1; k++ {
-		if color == floor.getTile(y-1, x+k) {
+
+		if color == floor.getTile(y-1, x+k*2-1) {
 			adjancent += 1
 		}
-		if color == floor.getTile(y+1, x+k) {
+		if color == floor.getTile(y+1, x+k*2-1) {
 			adjancent += 1
 		}
-		if color == floor.getTile(y+(k*2-1)*2, 0) {
-			adjancent += 1
-		}
-		if color == floor.getTile(y, x+k*2-1) {
+		/*
+			if color == floor.getTile(y+(k*2-1)*2, x) {
+				adjancent += 1
+			}
+		*/
+		if color == floor.getTile(y, x+(k*2-1)*2) {
 			adjancent += 1
 		}
 	}
+	// fmt.Println("Counted", adjancent)
 	return adjancent
 }
 
@@ -114,12 +130,17 @@ func (oldFloor Floor) flipLive() *Floor {
 	center := (len(oldFloor.tiles)) / 2
 	for y := -center - 1; y <= center+2; y++ {
 		for x := -center - 1; x <= center+2; x++ {
-			if oldFloor.getTile(y, x) {
-				if oldFloor.countAdjancent(y, x, false) == 2 {
+			count := oldFloor.countAdjancent(y, x, false)
+			tile := oldFloor.getTile(y, x)
+			// fmt.Println("Checking tile", y, x, tile, count)
+			if tile {
+				// is White
+				if count == 2 {
+					// fmt.Println("setting black!", y, x)
 					floor.flip(y, x)
 				}
 			} else {
-				count := oldFloor.countAdjancent(y, x, false)
+				// is Black
 				if count == 1 || count == 2 {
 					floor.flip(y, x)
 				}
@@ -139,6 +160,10 @@ func newWalker(floor *Floor) *Walker {
 	walker.floor = floor
 
 	return walker
+}
+
+type Direction struct {
+	y, x int
 }
 
 func (walker *Walker) step(y, x int) {
@@ -194,13 +219,10 @@ func main() {
 		walker.walk(move)
 	}
 
-	fmt.Println(floor)
+	// fmt.Println(floor)
 	fmt.Println("Part1:", floor.countBlack())
-	/*
-		for i := 1; i <= 10; i++ {
-			floor = floor.flipLive()
-			fmt.Println(floor)
-			fmt.Println("Day", i, floor.countBlack())
-		}
-	*/
+	for i := 1; i <= 100; i++ {
+		floor = floor.flipLive()
+	}
+	fmt.Println("Part2:", floor.countBlack())
 }
