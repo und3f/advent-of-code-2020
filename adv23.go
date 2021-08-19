@@ -15,31 +15,37 @@ const PickupLen = 3
 const DeckSizeP2 = 1000000
 const MovesP2 = 10000000
 
-func printCups(cups []uint, pointer int) {
-	for i, card := range cups {
-		format := "%d "
-		if i == pointer {
-			format = "(%d) "
-		}
-		fmt.Printf(format, card)
-	}
-	fmt.Println()
+type Cup struct {
+	value uint
+	next  *Cup
 }
 
-type Deck struct {
-	cups                    []uint
-	pointer                 int
+type Deck2 struct {
+	cups                    map[uint]*Cup
+	pointer                 *Cup
 	lowestCard, highestCard uint
 }
 
-func newDeck(cups []uint) *Deck {
-	deck := new(Deck)
+func newDeck2(cups []uint) *Deck2 {
+	deck := new(Deck2)
+	deck.cups = make(map[uint]*Cup)
+	var prevCup *Cup
+	for _, value := range cups {
+		cup := new(Cup)
+		cup.value = value
+		if prevCup != nil {
+			prevCup.next = cup
+		}
+		deck.cups[value] = cup
+		prevCup = cup
+	}
+	firstCup := deck.cups[cups[0]]
+	prevCup.next = firstCup
+	deck.pointer = firstCup
 
-	deck.cups = cups
-	deck.pointer = 0
 	deck.lowestCard = cups[0]
 	deck.highestCard = cups[0]
-	for _, card := range deck.cups {
+	for _, card := range cups {
 		if card < deck.lowestCard {
 			deck.lowestCard = card
 		} else if card > deck.highestCard {
@@ -50,18 +56,8 @@ func newDeck(cups []uint) *Deck {
 	return deck
 }
 
-func (deck *Deck) Move() {
-	// printCups(deck.cups, deck.pointer)
-	// fmt.Println(deck)
-
-	destination := deck.cups[deck.pointer] - 1
-	pickup := make([]uint, PickupLen)
-	copy(pickup, deck.cups[deck.pointer+1:deck.pointer+1+PickupLen])
-
-	/*
-		fmt.Println("Pickup", pickup)
-		fmt.Println("Destination", destination)
-	*/
+func (deck *Deck2) Move() {
+	destination := deck.pointer.value - 1
 
 	for isInPicked := true; isInPicked; {
 		isInPicked = false
@@ -69,69 +65,53 @@ func (deck *Deck) Move() {
 			destination = deck.highestCard
 		}
 
-		for _, picked := range pickup {
-			if picked == destination {
+		pickedPointer := deck.pointer.next
+		for i := 1; i <= PickupLen; i++ {
+			if pickedPointer.value == destination {
 				isInPicked = true
 				destination--
 				break
 			}
+			pickedPointer = pickedPointer.next
 		}
 	}
 
-	destinationPointer := 0
-	for i, card := range deck.cups {
-		if card == destination {
-			destinationPointer = i
-			break
-		}
+	pickedLast := deck.pointer
+	for i := 1; i <= PickupLen; i++ {
+		pickedLast = pickedLast.next
 	}
 
-	deck.cups = append(deck.cups[0:deck.pointer+1], deck.cups[deck.pointer+4:]...)
-	if deck.pointer < destinationPointer {
-		destinationPointer -= len(pickup)
-	}
-	// printCups(deck.cups, deck.pointer)
-	// fmt.Println("Pickup", pickup)
-	// fmt.Println("Destination", destination)
-	deck.cups = append(deck.cups[0:destinationPointer+1], append(pickup, deck.cups[destinationPointer+1:]...)...)
-	if destinationPointer < deck.pointer {
-		deck.pointer += len(pickup)
-	}
-	deck.pointer++
+	pickedFirst := deck.pointer.next
+	deck.pointer.next = pickedLast.next
 
-	if deck.pointer == len(deck.cups) {
-		deck.pointer = 0
-	} else if deck.pointer+PickupLen >= len(deck.cups) {
-		deck.pointer -= PickupLen
-		deck.cups = append(deck.cups[PickupLen:], deck.cups[0:PickupLen]...)
-	}
-	/*
-		fmt.Println(deck.pointer+PickupLen, len(deck.cups))
-		printCups(deck.cups, deck.pointer)
+	destinationPointer := deck.cups[destination]
+	// fmt.Println(deck.pointer, destination, deck.cups[4])
+	pickedLast.next = destinationPointer.next
+	destinationPointer.next = pickedFirst
 
-		fmt.Println()
-		fmt.Println()
-	*/
-	//return deck
+	deck.pointer = deck.pointer.next
 }
 
-func (deck *Deck) LabelsAfterOne() uint64 {
-	labels := uint(0)
-	var firstCup int
-	for i, cup := range deck.cups {
-		if cup == 1 {
-			firstCup = i
-			break
-		}
+func (deck *Deck2) PrintCups() {
+	fmt.Printf("(%d) ", deck.pointer.value)
+	for cup := deck.pointer.next; cup != deck.pointer; cup = cup.next {
+		fmt.Printf("%d ", cup.value)
 	}
-	p1cups := make([]uint, 0)
-	if firstCup+1 < len(deck.cups) {
-		p1cups = deck.cups[firstCup+1:]
-	}
-	p1cups = append(p1cups, deck.cups[0:firstCup]...)
+	fmt.Println()
+}
 
-	for _, v := range p1cups {
-		labels = labels*10 + v
+func (deck *Deck2) Part2() uint64 {
+	cupOne := deck.cups[1]
+	// fmt.Println(cupOne.next.value, cupOne.next.next.value)
+	return uint64(cupOne.next.value) * uint64(cupOne.next.next.value)
+}
+
+func (deck *Deck2) LabelsAfterOne() uint64 {
+	labels := uint(0)
+	firstCup := deck.cups[1]
+
+	for i := firstCup.next; i != firstCup; i = i.next {
+		labels = labels*10 + i.value
 	}
 
 	return uint64(labels)
@@ -150,29 +130,32 @@ func main() {
 		cups = append(cups, uint(cupChar-'0'))
 	}
 
-	deck := newDeck(cups)
+	cupsMillion := make([]uint, DeckSizeP2)
+	copy(cupsMillion, cups)
+
+	deck := newDeck2(cups)
 	for i := 0; i < MOVES; i++ {
-		fmt.Println("Move", i+1)
+		// fmt.Println("Move", i+1)
 		deck.Move()
+		// deck.PrintCups()
 	}
 	PartOne := strconv.FormatUint(deck.LabelsAfterOne(), 10)
 
 	fmt.Println("Part One:", PartOne)
 
 	nextCard := deck.highestCard + 1
-	cupsMillion := make([]uint, DeckSizeP2)
-	copy(cupsMillion, cups)
 	for i := len(cups); i < len(cupsMillion); i++ {
 		cupsMillion[i] = nextCard
 		nextCard++
 	}
 
-	deck = newDeck(cupsMillion)
+	deck2 := newDeck2(cupsMillion)
 	for i := 0; i < MovesP2; i++ {
+		// fmt.Println("Pointer", deck2.pointer)
 		if i%100 == 0 {
-			fmt.Printf("Move %d (%f%%)\n", i+1, float64(i+1)/float64(MovesP2)*100.0)
+			// fmt.Printf("Move %d (%f%%)\n", i+1, float64(i+1)/float64(MovesP2)*100.0)
 		}
-		deck.Move()
+		deck2.Move()
 	}
-	fmt.Println("Part Two:", strconv.FormatUint(deck.LabelsAfterOne(), 10))
+	fmt.Println("Part Two:", strconv.FormatUint(deck2.Part2(), 10))
 }
